@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 
 from ffmpy3 import FFmpeg
+from PIL import Image, ImageDraw, ImageFont
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--template',
@@ -35,6 +36,7 @@ parser.add_argument('--images',
 parser.add_argument('--fps', type=int, default=24, help='FPS of output video')
 parser.add_argument('--width', type=int, default=1920, help='Width of output video')
 parser.add_argument('--height', type=int, default=1080, help='Height of output video')
+parser.add_argument('--show_text', action='store_true', help='Show text')
 
 args = parser.parse_args()
 
@@ -45,6 +47,17 @@ raw_image_out = 11.3
 
 bg_color = (109, 209, 138)
 vertex_point = (210, 390)
+vertex_point_font = (1040, 310)
+font = ImageFont.truetype(os.path.join('font', 'simsunb.ttf'), 20)
+
+
+def cv2ImgAddText(img, text, left, top, textColor=(0, 255, 0), textSize=20):
+    if (isinstance(img, np.ndarray)):  #判断是否OpenCV图片类型
+        img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(img)
+    fontText = ImageFont.truetype("font/simsun.ttc", textSize, encoding="utf-8")
+    draw.text((left, top), text, textColor, font=fontText)
+    return cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
 
 
 def deal(raw_image, mask_image, image_name):
@@ -80,6 +93,11 @@ def deal(raw_image, mask_image, image_name):
             frame[vertex_point[0]:vertex_point[0] + raw_image.shape[0],
                   vertex_point[1]:vertex_point[1] +
                   raw_image.shape[1]][mask_image == 0] = raw_image[mask_image == 0]
+
+            if args.show_text:
+                frame = cv2ImgAddText(frame,
+                                      image_name.split('.')[0], vertex_point_font[0],
+                                      vertex_point_font[1], (255, 255, 0), 120)
             video_writer.write(frame)
             continue
 
@@ -104,7 +122,11 @@ def main():
         # image must be a png and a square
         if not image_path.endswith('.png'):
             continue
-        image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        print(image_path)
+        image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+        # image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        # cv2.imshow('image', image)
+        # cv2.waitKey(0)
         # resize to 340x340
         image = cv2.resize(image, (340, 340))
         # cv2.imshow('image', image)
