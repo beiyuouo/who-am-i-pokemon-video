@@ -13,12 +13,21 @@ import argparse
 import cv2
 import numpy as np
 
+from ffmpy3 import FFmpeg
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--template',
                     type=str,
                     default=os.path.join('template', 'who-am-i.mp4'),
                     help='Path to the video')
-parser.add_argument('--output', type=str, default='output.mp4', help='Path to the output video')
+parser.add_argument('--output_path',
+                    type=str,
+                    default=os.path.join('output'),
+                    help='Path to the output video')
+parser.add_argument('--output',
+                    type=str,
+                    default=os.path.join('output', 'output.mp4'),
+                    help='Path to the output video')
 parser.add_argument('--images',
                     type=str,
                     default=os.path.join('pokemon'),
@@ -37,13 +46,14 @@ raw_image_out = 11.3
 bg_color = (109, 209, 138)
 vertex_point = (210, 390)
 
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-video_writer = cv2.VideoWriter(args.output, fourcc, args.fps,
-                               (int(args.width), int(args.height)))
 
-
-def deal(raw_image, mask_image):
+def deal(raw_image, mask_image, image_name):
     video = cv2.VideoCapture(args.template)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    video_path = os.path.join(args.output_path, f"{image_name.split('.')[0]}.mp4")
+    temp_video_path = os.path.join(args.output_path, f"{image_name.split('.')[0]}_temp.mp4")
+    video_writer = cv2.VideoWriter(video_path, fourcc, args.fps,
+                                   (int(args.width), int(args.height)))
 
     while video.isOpened():
         ret, frame = video.read()
@@ -74,10 +84,21 @@ def deal(raw_image, mask_image):
             continue
 
     video.release()
+    video_writer.release()
+    ff = FFmpeg(inputs={
+        video_path: None,
+        args.template: '-vn'
+    },
+                outputs={temp_video_path: '-y'})
+    print(ff.cmd)
+    ff.run()
+    return temp_video_path
 
 
 def main():
     images = os.listdir(args.images)
+    os.makedirs(args.output_path, exist_ok=True)
+    paths = []
     for image in images:
         image_path = os.path.join(args.images, image)
         # image must be a png and a square
@@ -98,9 +119,18 @@ def main():
         raw_image[np.where(image_alpha != 0)] = image[np.where(image_alpha != 0)][:, :3]
         # cv2.imshow('raw_image', raw_image)
 
-        deal(raw_image, mask_image)
+        path = deal(raw_image, mask_image, os.path.basename(image_path))
+        paths.append(path)
 
-    video_writer.release()
+    with open(os.path.join('paths.txt'), 'w') as f:
+        for path in paths:
+            f.write(f"file '{path}'\n")
+
+    inputs = {'paths.txt': '-f concat -safe 0'}
+    outputs = {args.output: '-y -c copy'}
+    ff = FFmpeg(inputs=inputs, outputs=outputs)
+    print(ff.cmd)
+    ff.run()
 
 
 if __name__ == '__main__':

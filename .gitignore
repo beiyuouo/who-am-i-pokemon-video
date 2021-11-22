@@ -129,5 +129,6 @@ dmypy.json
 .pyre/
 
 # Path
-pokemon/*
+*.jpg
+*.png
 output*
